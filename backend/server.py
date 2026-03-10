@@ -196,4 +196,6 @@ def leaderboard():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8181))
     print(f"\nLocal Quiplash backend running at http://localhost:{port}\n")
-    app.run(port=port, debug=True, use_reloader=True)
+    app.run(host='0.0.0.0', port=port, debug=True, use_reloader=True)
+
+
