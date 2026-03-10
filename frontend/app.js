@@ -13,6 +13,10 @@ const request = require('request');
 // set up axios
 const axios = require('axios');
 const { type } = require('os');
+const AUTO_SHUTDOWN_IF_IDLE = process.env.AUTO_SHUTDOWN_IF_IDLE === '1';
+const JOIN_URL = process.env.JOIN_URL || null;
+const connectedSockets = new Set();
+let idleShutdownTimer = null;
 
 // List of players 
 let players = new Map();
@@ -54,7 +58,10 @@ app.use('/static', express.static('public'));
 
 //Handle client interface on /
 app.get('/', (req, res) => {
-  res.render('client');
+  res.render('client', {
+    joinUrl: JOIN_URL || `${req.protocol}://${req.get('host')}`,
+    hostIntro: req.query.host === '1'
+  });
 });
 //Handle display interface on /display
 app.get('/display', (req, res) => {
@@ -70,6 +77,31 @@ function startServer() {
     server.listen(PORT, () => {
         console.log(`Server listening on port ${PORT}`);
     });
+}
+
+function cancelIdleShutdown() {
+  if (idleShutdownTimer) {
+    clearTimeout(idleShutdownTimer);
+    idleShutdownTimer = null;
+  }
+}
+
+function scheduleIdleShutdownIfNeeded() {
+  if (!AUTO_SHUTDOWN_IF_IDLE) {
+    return;
+  }
+
+  if (connectedSockets.size > 0 || players.size > 0 || audience.size > 0) {
+    return;
+  }
+
+  cancelIdleShutdown();
+  idleShutdownTimer = setTimeout(() => {
+    if (connectedSockets.size === 0 && players.size === 0 && audience.size === 0) {
+      console.log('No connected tabs and no joined users remain. Shutting down.');
+      process.exit(0);
+    }
+  }, 2500);
 }
 
 // Call Azure Functions
@@ -153,22 +185,54 @@ function updateAudienceMember(socket){
   socket.emit('state',data);
 }
 
+function buildChatPayload(senderName, senderType, message) {
+  return {
+    sender: senderName,
+    senderType: senderType,
+    text: message,
+    avatarSeed: senderName
+  };
+}
+
 //Chat message
-function handleChat(player,message) {
-    console.log('Handling chat from player ' + player + ': ' + message);
-    io.emit('chat',message);
+function handleChat(socket, message) {
+    const trimmedMessage = String(message || '').trim();
+    if (!trimmedMessage) {
+      return;
+    }
+
+    let senderName = 'Unknown';
+    let senderType = 'player';
+
+    if (socketsToPlayers.has(socket)) {
+      const playerNumber = socketsToPlayers.get(socket);
+      const player = players.get(playerNumber);
+      senderName = player ? player.name : 'Player ' + playerNumber;
+      senderType = 'player';
+    } else if (socketsToAudience.has(socket)) {
+      const audienceNumber = socketsToAudience.get(socket);
+      const audienceMember = audience.get(audienceNumber);
+      senderName = audienceMember ? audienceMember.name : 'Audience ' + audienceNumber;
+      senderType = 'audience';
+    } else {
+      return;
+    }
+
+    console.log('Handling chat from ' + senderName + ': ' + trimmedMessage);
+    io.emit('chat', buildChatPayload(senderName, senderType, trimmedMessage));
 }
 
 // Handle Join
 function handleJoin(socket,username) {
     console.log('Handling join');
     console.log('state: ' + state.state);
+    cancelIdleShutdown();
     if (state.state > 0) {
       console.log('Game in progress, joining audience');
       // Start new audience member
       nextAudienceNumber++;
-      console.log('Welcome to audience member ' + nextAudienceNumber);
-      announce('Welcome audience member ' + nextAudienceNumber);
+      console.log('Welcome audience member ' + username);
+      announceAudienceJoined(username);
       
       audience.set(nextAudienceNumber, {
         name: username,
@@ -180,13 +244,14 @@ function handleJoin(socket,username) {
     }
 
     if(players.size < 8) {
+        const shouldBeHost = players.size === 0 || !Array.from(players.values()).some(player => player.admin);
 
         // Start new player
         nextPlayerNumber++;
-        console.log('Welcome to player ' + nextPlayerNumber);
-        announce('Welcome player ' + nextPlayerNumber);
+        console.log('Welcome player ' + username);
+        announcePlayerJoined(username, shouldBeHost);
 
-        if (nextPlayerNumber == 1) {
+        if (shouldBeHost) {
           players.set(nextPlayerNumber, {
             name: username,
             admin: true,
@@ -215,8 +280,8 @@ function handleJoin(socket,username) {
 
         // Start new audience member
         nextAudienceNumber++;
-        console.log('Welcome to audience member ' + nextAudienceNumber);
-        announce('Welcome audience member ' + nextAudienceNumber);
+        console.log('Welcome audience member ' + username);
+        announceAudienceJoined(username);
 
         audience.set(nextAudienceNumber, {
           name: username,
@@ -372,7 +437,181 @@ function handleNext(socket) {
 // Announce message to all players and audience
 function announce(message) {
   console.log('Announcement: ' + message);
-  io.emit('chat',message);
+  io.emit('chat', buildChatPayload('System', 'system', message));
+}
+
+function announcePlayerJoined(username, isHost) {
+  if (isHost) {
+    announce(username + ' joined the lobby as host.');
+    return;
+  }
+
+  announce(username + ' joined the lobby.');
+}
+
+function announceAudienceJoined(username) {
+  announce(username + ' joined as audience.');
+}
+
+function assignHostIfNeeded() {
+  let hasHost = false;
+
+  for (const [, player] of players) {
+    if (player.admin) {
+      hasHost = true;
+      break;
+    }
+  }
+
+  if (hasHost || players.size === 0) {
+    return;
+  }
+
+  const nextHostEntry = players.entries().next().value;
+  if (!nextHostEntry) {
+    return;
+  }
+
+  const [playerNumber, player] = nextHostEntry;
+  player.admin = true;
+  announce(player.name + ' is now the host.');
+}
+
+function completedRoundsSoFar() {
+  if (state.state >= 4) {
+    return state.round;
+  }
+  return Math.max(state.round - 1, 0);
+}
+
+function commitRoundScoresToTotals() {
+  if (state.state !== 4) {
+    return;
+  }
+
+  for (const [playerNumber, player] of players) {
+    player.totalScore += player.roundScore;
+  }
+
+  for (const [playerNumber, score] of Object.entries(state.roundScores)) {
+    if (playerNumber in state.totalScores) {
+      state.totalScores[playerNumber] += score;
+    } else {
+      state.totalScores[playerNumber] = score;
+    }
+  }
+}
+
+function resetToLobbyAfterDisconnect() {
+  state.state = 0;
+  state.round = 0;
+  state.promptPlayers = {};
+  state.pastPrompts = [];
+  state.answers = {};
+  state.playerAnswers = {};
+  state.votes = {};
+  state.currentPrompt = null;
+  state.roundScores = {};
+  state.totalScores = {};
+  suggestedPrompts.clear();
+  playerPrompts = new Map();
+
+  for (const [, player] of players) {
+    player.state = 1;
+    player.roundPrompts = [];
+    player.roundAnswers = {};
+    player.currentVotes = [];
+    player.roundScore = 0;
+    player.totalScore = 0;
+  }
+}
+
+function endGameEarlyAfterDisconnect() {
+  commitRoundScoresToTotals();
+  state.state = 5;
+  state.currentPrompt = null;
+  startGameOver();
+}
+
+function handlePlayerDisconnect(socket) {
+  const playerNumber = socketsToPlayers.get(socket);
+  const player = players.get(playerNumber);
+
+  if (!player) {
+    socketsToPlayers.delete(socket);
+    playersToSockets.delete(playerNumber);
+    return;
+  }
+
+  const playerName = player.name;
+  const wasHost = player.admin;
+
+  socketsToPlayers.delete(socket);
+  playersToSockets.delete(playerNumber);
+  players.delete(playerNumber);
+  suggestedPrompts.delete(playerNumber);
+  playerPrompts.delete(playerNumber);
+  delete state.playerAnswers[playerNumber];
+  delete state.roundScores[playerNumber];
+  delete state.totalScores[playerNumber];
+
+  for (const prompt of Object.keys(state.promptPlayers)) {
+    state.promptPlayers[prompt] = state.promptPlayers[prompt].filter(playerId => playerId !== playerNumber);
+    if (state.promptPlayers[prompt].length === 0) {
+      delete state.promptPlayers[prompt];
+      delete state.answers[prompt];
+      if (state.currentPrompt === prompt) {
+        state.currentPrompt = Object.keys(state.promptPlayers)[0] || null;
+      }
+    }
+  }
+
+  for (const answer of Object.keys(state.votes)) {
+    state.votes[answer] = state.votes[answer].filter(voterId => voterId !== playerNumber);
+    if (state.votes[answer].length === 0) {
+      delete state.votes[answer];
+    }
+  }
+
+  if (wasHost) {
+    assignHostIfNeeded();
+  }
+
+  announce(playerName + ' disconnected.');
+
+  if (state.state === 0) {
+    announce('Waiting for another player to join. ' + players.size + ' player(s) currently connected.');
+    updateAll();
+    return;
+  }
+
+  if (completedRoundsSoFar() > 0) {
+    announce('The game is ending early because ' + playerName + ' disconnected. Showing scores so far.');
+    endGameEarlyAfterDisconnect();
+  } else {
+    announce(playerName + ' disconnected before the first round finished. Returning to the lobby.');
+    resetToLobbyAfterDisconnect();
+  }
+
+  updateAll();
+  scheduleIdleShutdownIfNeeded();
+}
+
+function handleAudienceDisconnect(socket) {
+  const audienceNumber = socketsToAudience.get(socket);
+  const audienceMember = audience.get(audienceNumber);
+
+  socketsToAudience.delete(socket);
+  audienceToSockets.delete(audienceNumber);
+
+  if (!audienceMember) {
+    return;
+  }
+
+  audience.delete(audienceNumber);
+  announce(audienceMember.name + ' left the audience.');
+  updateAll();
+  scheduleIdleShutdownIfNeeded();
 }
 
 
@@ -729,13 +968,15 @@ function findAnswerSubmitter(currentPrompt, answerText) {
 //Handle new connection
 io.on('connection', socket => { 
   console.log('New connection');
+  connectedSockets.add(socket.id);
+  cancelIdleShutdown();
 
   //Handle on chat message received
   socket.on('chat', message => {
     if (socketsToPlayers.has(socket)) {
-      handleChat(socketsToPlayers.get(socket),message)
+      handleChat(socket, message)
     } else if (socketsToAudience.has(socket)) {
-      handleChat(socketsToAudience.get(socket),message);
+      handleChat(socket, message);
     } else {
       return;
     }
@@ -744,6 +985,14 @@ io.on('connection', socket => {
   //Handle disconnection
   socket.on('disconnect', () => {
     console.log('Dropped connection');
+    connectedSockets.delete(socket.id);
+    if (socketsToPlayers.has(socket)) {
+      handlePlayerDisconnect(socket);
+    } else if (socketsToAudience.has(socket)) {
+      handleAudienceDisconnect(socket);
+    } else {
+      scheduleIdleShutdownIfNeeded();
+    }
   });
 
   socket.on('login',async(data) => {

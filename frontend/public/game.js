@@ -1,4 +1,5 @@
 var socket = null;
+var bootConfig = window.QUIPLASH_BOOT || {};
 
 //Prepare game
 var app = new Vue({
@@ -8,6 +9,9 @@ var app = new Vue({
         connected: false,
         theme: 'dark',
         isJoined: false,
+        showWelcomeScreen: !!bootConfig.hostIntro,
+        joinUrl: bootConfig.joinUrl || window.location.origin,
+        shareStatus: '',
         messages: [],
         chatmessage: '',
         username: '',
@@ -106,6 +110,9 @@ var app = new Vue({
         toggleForm() {
             this.isLogin = !this.isLogin;
         },
+        dismissWelcomeScreen() {
+            this.showWelcomeScreen = false;
+        },
         loadTheme() {
             const storedTheme = window.localStorage.getItem('quiplash-theme');
             if (storedTheme === 'light' || storedTheme === 'dark') {
@@ -122,26 +129,49 @@ var app = new Vue({
             this.applyTheme();
         },
         handleChat(message) {
-            if(this.messages.length + 1 > 10) {
-                this.messages.pop();
+            const normalizedMessage = typeof message === 'string'
+                ? {
+                    sender: 'System',
+                    senderType: 'system',
+                    text: message,
+                    avatarSeed: 'System'
+                }
+                : message;
+
+            if(this.messages.length + 1 > 20) {
+                this.messages.shift();
             }
-            this.messages.unshift(message);
+            this.messages.push(normalizedMessage);
+            this.$nextTick(this.scrollChatToBottom);
         },
         chat() {
+            if (!this.chatmessage.trim()) {
+                return;
+            }
             socket.emit('chat',this.chatmessage);
             this.chatmessage = '';
         },
         register(username, password) {
             // Emit register event with username & password
+            this.showWelcomeScreen = false;
             socket.emit('register',{username,password});
             // this.username = '';
             // this.password = '';
         },
         login(username, password) {
             // Emit login event with username & password
+            this.showWelcomeScreen = false;
             socket.emit('login',{username,password});
             // this.username = '';
             // this.password = '';
+        },
+        async copyJoinLink() {
+            try {
+                await navigator.clipboard.writeText(this.joinUrl);
+                this.shareStatus = 'Join link copied.';
+            } catch (error) {
+                this.shareStatus = 'Copy failed. You can still share the link manually.';
+            }
         },
         submitPrompt(promptText) {
             if (this.isPromptValid) {
@@ -206,6 +236,45 @@ var app = new Vue({
         },
         playerName(playerNumber) {
             return this.players[playerNumber] ? this.players[playerNumber].name : 'Unknown player';
+        },
+        chatAvatarLabel(message) {
+            return (message.sender || '?').trim().charAt(0).toUpperCase();
+        },
+        chatAvatarStyle(message) {
+            let hash = 0;
+            const seed = message.avatarSeed || message.sender || 'Player';
+
+            for (let i = 0; i < seed.length; i++) {
+                hash = seed.charCodeAt(i) + ((hash << 5) - hash);
+            }
+
+            const hue = Math.abs(hash) % 360;
+            return {
+                background: 'linear-gradient(135deg, hsl(' + hue + ', 72%, 58%), hsl(' + ((hue + 32) % 360) + ', 78%, 46%))'
+            };
+        },
+        chatRoleLabel(message) {
+            if (message.senderType === 'system') {
+                return 'Announcement';
+            }
+            const matchingPlayer = Object.values(this.players).find(player => player.name === message.sender);
+            if (matchingPlayer && matchingPlayer.admin) {
+                return 'Host';
+            }
+            if (message.senderType === 'audience') {
+                return 'Audience';
+            }
+            return 'Player';
+        },
+        isOwnMessage(message) {
+            return message.senderType !== 'system' && this.me && this.me.name && message.sender === this.me.name;
+        },
+        scrollChatToBottom() {
+            const chatList = this.$refs.chatList;
+            if (!chatList) {
+                return;
+            }
+            chatList.scrollTop = chatList.scrollHeight;
         },
         handleEndOfVoting() {
             socket.emit('updateScore',{prompt: this.state.currentPrompt, votes: this.state.votes})

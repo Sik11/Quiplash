@@ -22,7 +22,11 @@
 
     <div class="shell-grid">
         <section class="panel main-panel">
-            <div v-if="connected && isJoined == false">
+            <div v-if="connected && isJoined == false && showWelcomeScreen">
+                <%- include('welcome') %>
+            </div>
+
+            <div v-if="connected && isJoined == false && !showWelcomeScreen">
                 <%- include('login') %>
             </div>
 
@@ -85,5 +89,8 @@
     </div>
 </div>
 
+<script>
+    window.QUIPLASH_BOOT = <%- JSON.stringify({ joinUrl, hostIntro }) %>;
+</script>
 <%- include('partials/footer'); -%>
 </html>
