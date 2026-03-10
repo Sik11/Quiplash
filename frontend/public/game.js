@@ -9,7 +9,7 @@ var app = new Vue({
         connected: false,
         theme: 'dark',
         isJoined: false,
-        showWelcomeScreen: !!bootConfig.hostIntro,
+        showWelcomeScreen: false,
         joinUrl: bootConfig.joinUrl || window.location.origin,
         shareStatus: '',
         messages: [],
@@ -104,14 +104,19 @@ var app = new Vue({
     },
     mounted: function() {
         this.loadTheme();
+        this.loadWelcomePreference();
         connect(); 
     },
     methods: {
         toggleForm() {
             this.isLogin = !this.isLogin;
         },
+        loadWelcomePreference() {
+            this.showWelcomeScreen = window.localStorage.getItem('quiplash-welcome-dismissed') !== '1';
+        },
         dismissWelcomeScreen() {
             this.showWelcomeScreen = false;
+            window.localStorage.setItem('quiplash-welcome-dismissed', '1');
         },
         loadTheme() {
             const storedTheme = window.localStorage.getItem('quiplash-theme');
@@ -154,6 +159,7 @@ var app = new Vue({
         register(username, password) {
             // Emit register event with username & password
             this.showWelcomeScreen = false;
+            window.localStorage.setItem('quiplash-welcome-dismissed', '1');
             socket.emit('register',{username,password});
             // this.username = '';
             // this.password = '';
@@ -161,6 +167,7 @@ var app = new Vue({
         login(username, password) {
             // Emit login event with username & password
             this.showWelcomeScreen = false;
+            window.localStorage.setItem('quiplash-welcome-dismissed', '1');
             socket.emit('login',{username,password});
             // this.username = '';
             // this.password = '';
@@ -229,6 +236,9 @@ var app = new Vue({
             this.players = data.players;
             this.audience = data.audience;
             this.suggestedPrompts = data.suggestedPrompts;
+            if (!this.isJoined && this.playerCount === 0 && this.audienceCount === 0) {
+                this.showWelcomeScreen = window.localStorage.getItem('quiplash-welcome-dismissed') !== '1';
+            }
         },
         admin(action) {
             // Emit admin event with action

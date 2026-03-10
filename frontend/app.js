@@ -59,8 +59,7 @@ app.use('/static', express.static('public'));
 //Handle client interface on /
 app.get('/', (req, res) => {
   res.render('client', {
-    joinUrl: JOIN_URL || `${req.protocol}://${req.get('host')}`,
-    hostIntro: req.query.host === '1'
+    joinUrl: JOIN_URL || `${req.protocol}://${req.get('host')}`
   });
 });
 //Handle display interface on /display
