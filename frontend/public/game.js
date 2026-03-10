@@ -70,7 +70,16 @@ var app = new Vue({
             return Object.keys(this.suggestedPrompts).length < Object.keys(this.players).length;
         },
         isWaitingForAnswers: function() {
-            return Object.keys(this.state.answers).length !== Object.keys(this.state.promptPlayers).length || !Object.values(this.state.answers).every(answers => answers.length === 2);
+            const prompts = Object.keys(this.state.promptPlayers || {});
+            if (prompts.length === 0) {
+                return true;
+            }
+
+            return prompts.some(prompt => {
+                const expectedAnswers = (this.state.promptPlayers[prompt] || []).length;
+                const submittedAnswers = (this.state.answers[prompt] || []).length;
+                return submittedAnswers < expectedAnswers;
+            });
         },
         submittedAnswer:function(){
             if (this.state.currentPrompt in this.me.roundAnswers){
@@ -234,6 +243,15 @@ var app = new Vue({
             this.suggestedPrompts = data.suggestedPrompts;
             this.syncWelcomeScreen();
         },
+        updatePublicState(data) {
+            if (this.isJoined) {
+                return;
+            }
+            this.state = data.state;
+            this.players = data.players;
+            this.audience = data.audience;
+            this.syncWelcomeScreen();
+        },
         admin(action) {
             // Emit admin event with action
             socket.emit('admin',action);
@@ -327,6 +345,10 @@ function connect() {
     // State update
     socket.on('state', function(data) {
         app.update(data);
+    });
+
+    socket.on('public_state', function(data) {
+        app.updatePublicState(data);
     });
 
     //Handle connection error

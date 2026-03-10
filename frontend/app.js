@@ -142,6 +142,19 @@ function updateAll(){
   for (let [playerNumber,socket] of audienceToSockets) {
     updateAudienceMember(socket);
   }
+  broadcastPublicState();
+}
+
+function buildPublicState() {
+  return {
+    state: state,
+    players: Object.fromEntries(players),
+    audience: Object.fromEntries(audience)
+  };
+}
+
+function broadcastPublicState() {
+  io.emit('public_state', buildPublicState());
 }
 
 // Update one player's state and send it to the client
@@ -969,6 +982,7 @@ io.on('connection', socket => {
   console.log('New connection');
   connectedSockets.add(socket.id);
   cancelIdleShutdown();
+  socket.emit('public_state', buildPublicState());
 
   //Handle on chat message received
   socket.on('chat', message => {
