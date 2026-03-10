@@ -104,19 +104,17 @@ var app = new Vue({
     },
     mounted: function() {
         this.loadTheme();
-        this.loadWelcomePreference();
         connect(); 
     },
     methods: {
         toggleForm() {
             this.isLogin = !this.isLogin;
         },
-        loadWelcomePreference() {
-            this.showWelcomeScreen = window.localStorage.getItem('quiplash-welcome-dismissed') !== '1';
+        syncWelcomeScreen() {
+            this.showWelcomeScreen = !this.isJoined && this.playerCount === 0 && this.audienceCount === 0 && this.state.state === 0;
         },
         dismissWelcomeScreen() {
             this.showWelcomeScreen = false;
-            window.localStorage.setItem('quiplash-welcome-dismissed', '1');
         },
         loadTheme() {
             const storedTheme = window.localStorage.getItem('quiplash-theme');
@@ -159,7 +157,6 @@ var app = new Vue({
         register(username, password) {
             // Emit register event with username & password
             this.showWelcomeScreen = false;
-            window.localStorage.setItem('quiplash-welcome-dismissed', '1');
             socket.emit('register',{username,password});
             // this.username = '';
             // this.password = '';
@@ -167,7 +164,6 @@ var app = new Vue({
         login(username, password) {
             // Emit login event with username & password
             this.showWelcomeScreen = false;
-            window.localStorage.setItem('quiplash-welcome-dismissed', '1');
             socket.emit('login',{username,password});
             // this.username = '';
             // this.password = '';
@@ -236,9 +232,7 @@ var app = new Vue({
             this.players = data.players;
             this.audience = data.audience;
             this.suggestedPrompts = data.suggestedPrompts;
-            if (!this.isJoined && this.playerCount === 0 && this.audienceCount === 0) {
-                this.showWelcomeScreen = window.localStorage.getItem('quiplash-welcome-dismissed') !== '1';
-            }
+            this.syncWelcomeScreen();
         },
         admin(action) {
             // Emit admin event with action
@@ -327,6 +321,7 @@ function connect() {
         //Set connected state to true
         app.connected = true;
         app.state.state = 0;
+        app.syncWelcomeScreen();
     });
 
     // State update
@@ -343,6 +338,7 @@ function connect() {
     socket.on('disconnect', function() {
         alert('Disconnected');
         app.connected = false;
+        app.showWelcomeScreen = false;
     });
 
     //Handle incoming chat message
@@ -355,6 +351,7 @@ function connect() {
         app.error= null;
         app.isLogin = true;
         app.isJoined = true;
+        app.showWelcomeScreen = false;
     });
 
     socket.on('reg_fail', function(message){
@@ -366,6 +363,7 @@ function connect() {
         app.success = 'Login successful!';
         app.error= null;
         app.isJoined = true;
+        app.showWelcomeScreen = false;
     });
 
     socket.on('login_fail', function(message){

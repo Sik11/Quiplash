@@ -439,9 +439,9 @@ function announce(message) {
   io.emit('chat', buildChatPayload('System', 'system', message));
 }
 
-function announcePlayerJoined(username, isHost) {
-  if (isHost) {
-    announce(username + ' joined the lobby as host.');
+function announcePlayerJoined(username, isAdmin) {
+  if (isAdmin) {
+    announce(username + ' joined the lobby as admin.');
     return;
   }
 
@@ -452,28 +452,28 @@ function announceAudienceJoined(username) {
   announce(username + ' joined as audience.');
 }
 
-function assignHostIfNeeded() {
-  let hasHost = false;
+function assignAdminIfNeeded() {
+  let hasAdmin = false;
 
   for (const [, player] of players) {
     if (player.admin) {
-      hasHost = true;
+      hasAdmin = true;
       break;
     }
   }
 
-  if (hasHost || players.size === 0) {
+  if (hasAdmin || players.size === 0) {
     return;
   }
 
-  const nextHostEntry = players.entries().next().value;
-  if (!nextHostEntry) {
+  const nextAdminEntry = players.entries().next().value;
+  if (!nextAdminEntry) {
     return;
   }
 
-  const [playerNumber, player] = nextHostEntry;
+  const [playerNumber, player] = nextAdminEntry;
   player.admin = true;
-  announce(player.name + ' is now the host.');
+  announce(player.name + ' is now the admin and can control the game.');
 }
 
 function completedRoundsSoFar() {
@@ -543,7 +543,7 @@ function handlePlayerDisconnect(socket) {
   }
 
   const playerName = player.name;
-  const wasHost = player.admin;
+  const wasAdmin = player.admin;
 
   socketsToPlayers.delete(socket);
   playersToSockets.delete(playerNumber);
@@ -572,8 +572,8 @@ function handlePlayerDisconnect(socket) {
     }
   }
 
-  if (wasHost) {
-    assignHostIfNeeded();
+  if (wasAdmin) {
+    assignAdminIfNeeded();
   }
 
   announce(playerName + ' disconnected.');

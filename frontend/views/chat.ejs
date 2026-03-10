@@ -15,6 +15,9 @@
     </div>
     <label class="field compact-field">
         <span>Chat</span>
-        <input type="text" @keyup.enter="chat()" v-model="chatmessage" placeholder="Send a message to the room">
+        <div class="chat-compose">
+            <input type="text" @keyup.enter="chat()" v-model="chatmessage" placeholder="Send a message to the room">
+            <button type="button" class="primary-button chat-send-button" @click="chat()" :disabled="!chatmessage.trim()">Send</button>
+        </div>
     </label>
 </div>
