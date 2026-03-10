@@ -1,0 +1,21 @@
+<section class="screen">
+    <p class="eyebrow">Vote submitted</p>
+    <h2 class="screen-title">Results for this prompt</h2>
+    <p class="screen-copy" v-if="isWaitingForVotes">Waiting for everyone else to finish voting.</p>
+    <p class="screen-copy" v-else>Voting is complete for this prompt.</p>
+
+    <div class="results-grid">
+        <article class="result-card" v-for="answer in currentPromptAnswers">
+            <p class="result-answer">{{ answer }}</p>
+            <p class="result-meta">{{ findAnswerSubmitter(state.currentPrompt, answer) }}</p>
+            <p class="result-score">{{ state.votes[answer] ? state.votes[answer].length : 0 }} vote(s)</p>
+            <ul class="voter-list" v-if="state.votes[answer]">
+                <li v-for="voter in state.votes[answer]">{{ players[voter].name }}</li>
+            </ul>
+        </article>
+    </div>
+
+    <div class="action-row" v-if="me.admin == true && !isWaitingForVotes">
+        <button class="primary-button" @click="handleEndOfVoting()">Next Prompt</button>
+    </div>
+</section>

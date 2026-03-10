@@ -1,0 +1,22 @@
+<section class="screen">
+    <p class="eyebrow">Vote phase</p>
+    <h2 class="screen-title">{{ state.currentPrompt }}</h2>
+
+    <div v-if="!submittedAnswer">
+        <p class="screen-copy">Pick the funniest answer below.</p>
+        <div class="choice-grid">
+            <button class="choice-card" v-for="answer in currentPromptAnswers" @click="submitVote(answer)">
+                {{ answer }}
+            </button>
+        </div>
+    </div>
+
+    <div v-else>
+        <p class="screen-copy" v-if="isWaitingForVotes">You answered this prompt, so you are sitting this vote out.</p>
+        <p class="screen-copy" v-else>All votes are in. Move on when you are ready.</p>
+
+        <div class="action-row" v-if="me.admin == true && !isWaitingForVotes">
+            <button class="primary-button" @click="handleEndOfVoting()">Next Prompt</button>
+        </div>
+    </div>
+</section>

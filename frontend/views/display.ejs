@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<%- include('partials/header'); -%>
+
+<div id="game" class="app-shell display-shell">
+    <div class="app-backdrop"></div>
+
+    <header class="shell-nav">
+        <div>
+            <p class="eyebrow">Room display</p>
+            <h1 class="brand">Quiplash</h1>
+        </div>
+        <div class="nav-actions">
+            <span class="connection-pill" :class="connected ? 'online' : 'offline'">
+                {{ connected ? 'Connected' : 'Connecting' }}
+            </span>
+            <button type="button" class="theme-toggle" @click="toggleTheme">
+                {{ theme === 'dark' ? 'Light mode' : 'Dark mode' }}
+            </button>
+        </div>
+    </header>
+
+    <section class="panel display-panel" v-if="connected">
+        <p class="eyebrow">Live feed</p>
+        <h2 class="screen-title">Game room messages</h2>
+        <ul id="chat" class="chat-list display-chat">
+            <li v-for="message in messages">{{message}}</li>
+        </ul>
+    </section>
+
+    <section class="panel display-panel" v-else>
+        <p class="eyebrow">Session status</p>
+        <h2 class="screen-title">Connecting to room display</h2>
+        <p class="screen-copy">Waiting for the websocket connection.</p>
+    </section>
+</div>
+
+<%- include('partials/footer'); -%>
+</html>

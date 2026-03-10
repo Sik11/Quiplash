@@ -1,0 +1,29 @@
+<section class="screen auth-screen">
+    <div class="screen-hero">
+        <p class="eyebrow">Welcome back</p>
+        <h2 class="screen-title">Join the room in seconds</h2>
+        <p class="screen-copy">Sign in to play, or create an account if this is your first round.</p>
+    </div>
+
+    <form class="stack-form" @submit.prevent="isLogin ? login(username, password) : register(username, password)">
+        <label class="field">
+            <span>Username</span>
+            <input type="text" v-model="username" placeholder="Enter your username" required>
+        </label>
+
+        <label class="field">
+            <span>Password</span>
+            <input type="password" v-model="password" placeholder="Enter your password" required>
+        </label>
+
+        <div class="action-row">
+            <button type="submit" class="primary-button">{{ isLogin ? 'Login' : 'Register' }}</button>
+            <button type="button" class="secondary-button" @click="toggleForm">
+                {{ isLogin ? 'Create account' : 'Use existing account' }}
+            </button>
+        </div>
+    </form>
+
+    <p v-if="success" class="feedback success-message">{{ success }}</p>
+    <p v-if="error" class="feedback error-message">{{ error }}</p>
+</section>

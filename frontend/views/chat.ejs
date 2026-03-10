@@ -1,0 +1,9 @@
+<div class="chat-panel">
+    <label class="field compact-field">
+        <span>Chat</span>
+        <input type="text" @keyup.enter="chat()" v-model="chatmessage" placeholder="Send a message to the room">
+    </label>
+    <ul id="chat" class="chat-list">
+        <li v-for="message in messages">{{message}}</li>
+    </ul>
+</div>

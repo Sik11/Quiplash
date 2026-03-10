@@ -1,0 +1,16 @@
+<section class="screen">
+    <p class="eyebrow">Round summary</p>
+    <h2 class="screen-title">Round {{ state.round }} scores</h2>
+
+    <div class="score-list">
+        <article class="score-row" v-for="entry in roundScoreEntries">
+            <span>{{ playerName(entry[0]) }}</span>
+            <strong>{{ entry[1] }} pts</strong>
+        </article>
+    </div>
+
+    <div class="action-row" v-if="me.admin == true">
+        <button class="primary-button" @click="advanceGame">Next Round</button>
+    </div>
+    <p class="screen-copy" v-else>Waiting for the host to start the next round.</p>
+</section>

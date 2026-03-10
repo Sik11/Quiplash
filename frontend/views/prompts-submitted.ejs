@@ -1,0 +1,10 @@
+<section class="screen">
+    <p class="eyebrow">Prompt locked in</p>
+    <h2 class="screen-title">Your prompt is submitted</h2>
+    <p class="screen-copy" v-if="isWaitingForPrompts">Waiting for the rest of the lobby to finish writing.</p>
+    <p class="screen-copy" v-else>All prompts are in. The next phase is ready.</p>
+
+    <div class="action-row" v-if="me.admin == true && !isWaitingForPrompts">
+        <button class="primary-button" @click="advanceGame()">Continue</button>
+    </div>
+</section>

@@ -1,0 +1,41 @@
+<section class="screen">
+    <div v-if="me.audience">
+        <p class="eyebrow">Audience mode</p>
+        <h2 class="screen-title">You are in the crowd for this round</h2>
+        <p class="screen-copy">The game is already in progress. Stay connected and you will join in fully next round.</p>
+    </div>
+
+    <div v-else>
+        <div class="screen-hero">
+            <p class="eyebrow">Lobby</p>
+            <h2 class="screen-title">Players are gathering</h2>
+            <p class="screen-copy">{{ waitingMessage }}</p>
+        </div>
+
+        <div class="stat-row">
+            <div class="stat-card">
+                <span class="stat-label">Players</span>
+                <strong>{{ playerCount }}</strong>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Audience</span>
+                <strong>{{ audienceCount }}</strong>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Role</span>
+                <strong>{{ me.admin ? 'Admin' : 'Player' }}</strong>
+            </div>
+        </div>
+
+        <div class="player-grid">
+            <article v-for="player of players" class="player-card">
+                <span class="player-badge" v-if="player.admin">Host</span>
+                <strong>{{ player.name }}</strong>
+            </article>
+        </div>
+
+        <div class="cta-row" v-if="me.admin == true && playerCount >= 3">
+            <button class="primary-button" @click="admin('start')">Start Game</button>
+        </div>
+    </div>
+</section>
