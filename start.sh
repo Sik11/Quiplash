@@ -52,7 +52,10 @@ if [ ! -d "node_modules/express" ]; then
   fi
 fi
 
-BACKEND="http://localhost:$BACKEND_PORT" node app.js &> "$SCRIPT_DIR/logs/frontend.log" &
+HOST_URL="http://localhost:$FRONTEND_PORT"
+JOIN_URL="http://$LOCAL_IP:$FRONTEND_PORT"
+
+BACKEND="http://localhost:$BACKEND_PORT" JOIN_URL="$JOIN_URL" AUTO_SHUTDOWN_IF_IDLE=1 node app.js &> "$SCRIPT_DIR/logs/frontend.log" &
 FRONTEND_PID=$!
 
 sleep 1
@@ -63,8 +66,8 @@ echo "=================================="
 echo "       Quiplash is ready!"
 echo "=================================="
 echo ""
-echo "  Host URL : http://localhost:$FRONTEND_PORT"
-echo "  Join URL : http://$LOCAL_IP:$FRONTEND_PORT"
+echo "  Host URL : $HOST_URL"
+echo "  Join URL : $JOIN_URL"
 echo ""
 echo "  Share the Join URL with players on the same Wi-Fi."
 echo ""
@@ -75,6 +78,10 @@ echo ""
 echo "  Press Ctrl+C to stop everything."
 echo "=================================="
 echo ""
+
+if command -v open > /dev/null 2>&1; then
+  open "$HOST_URL/?host=1" >/dev/null 2>&1 || true
+fi
 
 # ── Shutdown ───────────────────────────────────────────────────────────────
 cleanup() {
@@ -88,4 +95,8 @@ cleanup() {
 
 trap cleanup SIGINT SIGTERM
 
-wait $BACKEND_PID $FRONTEND_PID
+while kill -0 $BACKEND_PID 2>/dev/null && kill -0 $FRONTEND_PID 2>/dev/null; do
+  sleep 1
+done
+
+cleanup

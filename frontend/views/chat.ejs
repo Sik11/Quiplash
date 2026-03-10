@@ -1,9 +1,20 @@
 <div class="chat-panel">
+    <div class="chat-scroll-wrap">
+        <ul id="chat" ref="chatList" class="chat-list">
+            <li v-for="message in messages" class="chat-entry" :class="{ own: isOwnMessage(message), system: message.senderType === 'system' }">
+                <div class="chat-avatar" :style="chatAvatarStyle(message)">{{ chatAvatarLabel(message) }}</div>
+                <div class="chat-bubble">
+                    <div class="chat-meta">
+                        <strong class="chat-author">{{ message.sender }}</strong>
+                        <span class="chat-role">{{ chatRoleLabel(message) }}</span>
+                    </div>
+                    <p class="chat-text">{{ message.text }}</p>
+                </div>
+            </li>
+        </ul>
+    </div>
     <label class="field compact-field">
         <span>Chat</span>
         <input type="text" @keyup.enter="chat()" v-model="chatmessage" placeholder="Send a message to the room">
     </label>
-    <ul id="chat" class="chat-list">
-        <li v-for="message in messages">{{message}}</li>
-    </ul>
 </div>
