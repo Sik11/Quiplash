@@ -1,15 +1,63 @@
 var socket = null;
 var bootConfig = window.QUIPLASH_BOOT || {};
+var SESSION_STORAGE_KEY = 'quiplash-session';
 
-//Prepare game
+function emptyPlayerState() {
+    return {
+        name: '',
+        state: 0,
+        admin: false,
+        audience: false,
+        roundPrompts: [],
+        roundAnswers: {},
+        currentVotes: [],
+        roundScore: 0,
+        totalScore: 0
+    };
+}
+
+function emptyGameState() {
+    return {
+        state: 0,
+        round: 0,
+        promptPlayers: {},
+        pastPrompts: [],
+        answers: {},
+        playerAnswers: {},
+        votes: {},
+        currentPrompt: null,
+        roundScores: {},
+        totalScores: {}
+    };
+}
+
+function loadStoredSession() {
+    try {
+        var raw = window.sessionStorage.getItem(SESSION_STORAGE_KEY);
+        return raw ? JSON.parse(raw) : null;
+    } catch (error) {
+        return null;
+    }
+}
+
+function saveStoredSession(data) {
+    window.sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(data));
+}
+
 var app = new Vue({
     el: '#game',
     data: {
         error: null,
         connected: false,
         theme: 'dark',
+        isAuthenticated: false,
         isJoined: false,
-        showWelcomeScreen: false,
+        isAuthPending: false,
+        authPendingMessage: '',
+        phaseLoading: {
+            active: false,
+            message: ''
+        },
         joinUrl: bootConfig.joinUrl || window.location.origin,
         shareStatus: '',
         messages: [],
@@ -22,29 +70,16 @@ var app = new Vue({
         promptIndex: 0,
         answerIndex: 0,
         currentAnswer: '',
-        me: {
-            name: '',
-            state: 0, 
-            admin: false,
-            roundPrompts: [], //Array to hold prompts for current round
-            roundAnswers: {}, //Map to hold answers for current round (keyed by prompt)
-            currentVotes: [],
-            roundScore:0,
-            totalScore: 0
-        },
-        state: {
-            state: 0, //Represents current state of the game
-            round: 1, //Represents current round of the game
-            promptPlayers: {},//Prompt Allocation for current round
-            pastPrompts: [],
-            answers: {}, //Map to hold player answers (keyed by prompt)
-            playerAnswers: {}, //Map to hold player answers (keyed by player)
-            votes: {}, //Map to hold player votes (keyed by answer)
-            currentPrompt: null, //Current prompt up for voting
-            roundScores: {}, //Map to hold round scores (keyed by player)
-            totalScores: {}, //Map to hold total scores (keyed by player)
-        },
-        players: {}, //
+        entryStep: 'auth',
+        roomCodeInput: bootConfig.initialRoomCode || '',
+        selectedRoomCode: bootConfig.initialRoomCode || '',
+        roomError: null,
+        authenticatedUsername: '',
+        reconnectNotice: '',
+        recoveryInProgress: false,
+        me: emptyPlayerState(),
+        state: emptyGameState(),
+        players: {},
         audience: {},
         suggestedPrompts: {}
     },
@@ -56,12 +91,11 @@ var app = new Vue({
             return Object.keys(this.audience).length;
         },
         waitingMessage: function() {
-            let playersNeeded = 3 - this.playerCount;
+            var playersNeeded = 3 - this.playerCount;
             if (playersNeeded > 0) {
                 return 'Waiting for ' + playersNeeded + ' more player(s)... Need a minimum of 3 players to start the game.';
-            } else {
-                return 'Ready to start the game!';
             }
+            return 'Ready to start the game!';
         },
         isPromptValid: function() {
             return this.prompt.length >= 15 && this.prompt.length <= 80;
@@ -70,32 +104,23 @@ var app = new Vue({
             return Object.keys(this.suggestedPrompts).length < Object.keys(this.players).length;
         },
         isWaitingForAnswers: function() {
-            const prompts = Object.keys(this.state.promptPlayers || {});
+            var prompts = Object.keys(this.state.promptPlayers || {});
             if (prompts.length === 0) {
                 return true;
             }
 
-            return prompts.some(prompt => {
-                const expectedAnswers = (this.state.promptPlayers[prompt] || []).length;
-                const submittedAnswers = (this.state.answers[prompt] || []).length;
+            return prompts.some(function(prompt) {
+                var expectedAnswers = (this.state.promptPlayers[prompt] || []).length;
+                var submittedAnswers = (this.state.answers[prompt] || []).length;
                 return submittedAnswers < expectedAnswers;
-            });
+            }, this);
         },
-        submittedAnswer:function(){
-            if (this.state.currentPrompt in this.me.roundAnswers){
-                return true;
-            } else {
-                return false;
-            }
+        submittedAnswer: function() {
+            return this.state.currentPrompt in this.me.roundAnswers;
         },
-        isWaitingForVotes: function(){
-            // Calculate the total number of votes cast
-            let totalVotesCast = Object.values(this.state.votes).flat().length;
-
-            // Calculate the total number of potential voters (all players and audience members minus 2)
-            let totalPotentialVoters = this.playerCount - 2;
-
-            // Check if we are still waiting for votes
+        isWaitingForVotes: function() {
+            var totalVotesCast = Object.values(this.state.votes).flat().length;
+            var totalPotentialVoters = this.playerCount - 2;
             return totalVotesCast < totalPotentialVoters;
         },
         currentPromptAnswers: function() {
@@ -105,43 +130,146 @@ var app = new Vue({
             return this.state.answers[this.state.currentPrompt];
         },
         roundScoreEntries: function() {
-            return Object.entries(this.state.roundScores).sort((a, b) => b[1] - a[1]);
+            return Object.entries(this.state.roundScores).sort(function(a, b) {
+                return b[1] - a[1];
+            });
         },
         totalScoreEntries: function() {
-            return Object.entries(this.state.totalScores).sort((a, b) => b[1] - a[1]);
+            return Object.entries(this.state.totalScores).sort(function(a, b) {
+                return b[1] - a[1];
+            });
+        },
+        roomJoinUrl: function() {
+            if (!this.selectedRoomCode) {
+                return this.joinUrl;
+            }
+            return this.joinUrl + '?room=' + encodeURIComponent(this.selectedRoomCode);
         }
     },
     mounted: function() {
         this.loadTheme();
-        connect(); 
+        this.hydrateSessionState();
+        connect();
     },
     methods: {
-        toggleForm() {
+        hydrateSessionState: function() {
+            var savedSession = loadStoredSession();
+            if (!savedSession) {
+                return;
+            }
+
+            this.username = savedSession.username || '';
+            this.password = savedSession.password || '';
+            this.selectedRoomCode = savedSession.roomCode || this.selectedRoomCode;
+            this.roomCodeInput = this.selectedRoomCode || this.roomCodeInput;
+            this.authenticatedUsername = savedSession.username || '';
+        },
+        persistSessionState: function() {
+            saveStoredSession({
+                username: this.authenticatedUsername || this.username,
+                password: this.password,
+                roomCode: this.selectedRoomCode || ''
+            });
+        },
+        clearStoredRoom: function() {
+            var savedSession = loadStoredSession();
+            if (!savedSession) {
+                return;
+            }
+            savedSession.roomCode = '';
+            saveStoredSession(savedSession);
+        },
+        beginRecovery: function() {
+            var savedSession = loadStoredSession();
+            if (!savedSession || !savedSession.username || !savedSession.password) {
+                return;
+            }
+
+            if (this.recoveryInProgress) {
+                return;
+            }
+
+            this.recoveryInProgress = true;
+            this.reconnectNotice = savedSession.roomCode
+                ? 'Reconnecting and rejoining room ' + savedSession.roomCode + '...'
+                : 'Reconnecting your session...';
+            this.isAuthPending = true;
+            this.authPendingMessage = 'Restoring your session...';
+            socket.emit('login', {
+                username: savedSession.username,
+                password: savedSession.password
+            });
+        },
+        toggleForm: function() {
             this.isLogin = !this.isLogin;
         },
-        syncWelcomeScreen() {
-            this.showWelcomeScreen = !this.isJoined && this.playerCount === 0 && this.audienceCount === 0 && this.state.state === 0;
-        },
-        dismissWelcomeScreen() {
-            this.showWelcomeScreen = false;
-        },
-        loadTheme() {
-            const storedTheme = window.localStorage.getItem('quiplash-theme');
+        loadTheme: function() {
+            var storedTheme = window.localStorage.getItem('quiplash-theme');
             if (storedTheme === 'light' || storedTheme === 'dark') {
                 this.theme = storedTheme;
             }
             this.applyTheme();
         },
-        applyTheme() {
+        applyTheme: function() {
             document.body.setAttribute('data-theme', this.theme);
         },
-        toggleTheme() {
+        toggleTheme: function() {
             this.theme = this.theme === 'dark' ? 'light' : 'dark';
             window.localStorage.setItem('quiplash-theme', this.theme);
             this.applyTheme();
         },
-        handleChat(message) {
-            const normalizedMessage = typeof message === 'string'
+        resetEntryFeedback: function() {
+            this.roomError = null;
+            this.error = null;
+            this.success = null;
+            this.shareStatus = '';
+            this.reconnectNotice = '';
+        },
+        goToStart: function() {
+            this.resetEntryFeedback();
+            this.entryStep = 'start';
+        },
+        goToJoinGame: function() {
+            this.resetEntryFeedback();
+            this.entryStep = 'join';
+        },
+        createRoom: function() {
+            this.resetEntryFeedback();
+            socket.emit('room/create');
+        },
+        selectRoom: function() {
+            var normalizedCode = String(this.roomCodeInput || '').trim().toUpperCase();
+            if (!normalizedCode) {
+                this.roomError = 'Enter a room code.';
+                return;
+            }
+
+            this.resetEntryFeedback();
+            this.roomCodeInput = normalizedCode;
+            socket.emit('room/select', { roomCode: normalizedCode });
+        },
+        setSelectedRoom: function(roomCode) {
+            this.selectedRoomCode = roomCode;
+            this.roomCodeInput = roomCode;
+            this.isJoined = true;
+            this.roomError = null;
+            this.recoveryInProgress = false;
+            this.reconnectNotice = '';
+            this.persistSessionState();
+        },
+        leaveRoomSelection: function() {
+            this.selectedRoomCode = '';
+            this.roomCodeInput = '';
+            this.isJoined = false;
+            this.players = {};
+            this.audience = {};
+            this.me = emptyPlayerState();
+            this.state = emptyGameState();
+            this.clearStoredRoom();
+            this.goToStart();
+        },
+        handleChat: function(message) {
+            var normalizedMessage = typeof message === 'string'
                 ? {
                     sender: 'System',
                     senderType: 'system',
@@ -150,136 +278,111 @@ var app = new Vue({
                 }
                 : message;
 
-            if(this.messages.length + 1 > 20) {
+            if (this.messages.length + 1 > 20) {
                 this.messages.shift();
             }
             this.messages.push(normalizedMessage);
             this.$nextTick(this.scrollChatToBottom);
         },
-        chat() {
+        chat: function() {
             if (!this.chatmessage.trim()) {
                 return;
             }
-            socket.emit('chat',this.chatmessage);
+            socket.emit('chat', this.chatmessage);
             this.chatmessage = '';
         },
-        register(username, password) {
-            // Emit register event with username & password
-            this.showWelcomeScreen = false;
-            socket.emit('register',{username,password});
-            // this.username = '';
-            // this.password = '';
+        register: function(username, password) {
+            this.isAuthPending = true;
+            this.authPendingMessage = 'Creating your account...';
+            socket.emit('register', {
+                username: username,
+                password: password
+            });
         },
-        login(username, password) {
-            // Emit login event with username & password
-            this.showWelcomeScreen = false;
-            socket.emit('login',{username,password});
-            // this.username = '';
-            // this.password = '';
+        login: function(username, password) {
+            this.isAuthPending = true;
+            this.authPendingMessage = 'Signing you in...';
+            socket.emit('login', {
+                username: username,
+                password: password
+            });
         },
-        async copyJoinLink() {
+        copyJoinLink: async function() {
             try {
-                await navigator.clipboard.writeText(this.joinUrl);
+                await navigator.clipboard.writeText(this.roomJoinUrl);
                 this.shareStatus = 'Join link copied.';
             } catch (error) {
                 this.shareStatus = 'Copy failed. You can still share the link manually.';
             }
         },
-        submitPrompt(promptText) {
-            if (this.isPromptValid) {
-                // Logic to handle the prompt submission
-                console.log('Prompt submitted:', promptText);
-                // Emit prompt event with promptText
-                socket.emit('prompt', { prompt: promptText });
-                // Reset the prompt input after submission
-                this.prompt = '';
-            } else {
+        submitPrompt: function(promptText) {
+            if (!this.isPromptValid) {
                 alert('Prompt is not valid');
-                console.log('Prompt is not valid');
+                return;
             }
+
+            socket.emit('prompt', { prompt: promptText });
+            this.prompt = '';
         },
-        submitAnswer(promptText, answerText) {
-
-            // socket.emit('answer', {prompt: promptText, answer: answerText});
-
-
-            // Clear the current answer input
+        submitAnswer: function(promptText, answerText) {
             this.currentAnswer = '';
             this.me.roundAnswers[promptText] = answerText;
-            
-            
-            // Move to the next prompt if available
+
             if (this.promptIndex < this.me.roundPrompts.length - 1) {
                 this.promptIndex++;
             } else {
-                // All prompts answered, proceed to next stage
-                // Emit an event or call a method to move to the next game state
                 this.finishAnswering();
             }
         },
-        finishAnswering() {
-            // Logic to handle the end of answering phase
-            console.log('Finished answering all prompts');
+        finishAnswering: function() {
             this.promptIndex = 0;
             this.currentAnswer = '';
-            // this.me.state++;
             socket.emit('answer', this.me.roundAnswers);
-            // Emit event or call method to advance the game state
         },
-        submitVote(answer) {
-            // Emit vote event with answerId
-            socket.emit('vote',answer);
+        submitVote: function(answer) {
+            socket.emit('vote', answer);
         },
-        advanceGame() {
-            // Emit advance event
+        advanceGame: function() {
             socket.emit('advance/next');
         },
-        update(data) {
-            this.me = data.me;
-            this.state = data.state;
-            // this.state.prompts = Object.fromEntries(data.state.prompts);
-            this.players = data.players;
-            this.audience = data.audience;
-            this.suggestedPrompts = data.suggestedPrompts;
-            this.syncWelcomeScreen();
+        update: function(data) {
+            this.selectedRoomCode = data.roomCode || this.selectedRoomCode;
+            this.me = data.me || emptyPlayerState();
+            this.state = data.state || emptyGameState();
+            this.players = data.players || {};
+            this.audience = data.audience || {};
+            this.suggestedPrompts = data.suggestedPrompts || {};
+            this.persistSessionState();
         },
-        updatePublicState(data) {
-            if (this.isJoined) {
-                return;
-            }
-            this.state = data.state;
-            this.players = data.players;
-            this.audience = data.audience;
-            this.syncWelcomeScreen();
+        admin: function(action) {
+            socket.emit('admin', action);
         },
-        admin(action) {
-            // Emit admin event with action
-            socket.emit('admin',action);
-        },
-        playerName(playerNumber) {
+        playerName: function(playerNumber) {
             return this.players[playerNumber] ? this.players[playerNumber].name : 'Unknown player';
         },
-        chatAvatarLabel(message) {
+        chatAvatarLabel: function(message) {
             return (message.sender || '?').trim().charAt(0).toUpperCase();
         },
-        chatAvatarStyle(message) {
-            let hash = 0;
-            const seed = message.avatarSeed || message.sender || 'Player';
+        chatAvatarStyle: function(message) {
+            var hash = 0;
+            var seed = message.avatarSeed || message.sender || 'Player';
 
-            for (let i = 0; i < seed.length; i++) {
+            for (var i = 0; i < seed.length; i++) {
                 hash = seed.charCodeAt(i) + ((hash << 5) - hash);
             }
 
-            const hue = Math.abs(hash) % 360;
+            var hue = Math.abs(hash) % 360;
             return {
                 background: 'linear-gradient(135deg, hsl(' + hue + ', 72%, 58%), hsl(' + ((hue + 32) % 360) + ', 78%, 46%))'
             };
         },
-        chatRoleLabel(message) {
+        chatRoleLabel: function(message) {
             if (message.senderType === 'system') {
                 return 'Announcement';
             }
-            const matchingPlayer = Object.values(this.players).find(player => player.name === message.sender);
+            var matchingPlayer = Object.values(this.players).find(function(player) {
+                return player.name === message.sender;
+            });
             if (matchingPlayer && matchingPlayer.admin) {
                 return 'Host';
             }
@@ -288,112 +391,173 @@ var app = new Vue({
             }
             return 'Player';
         },
-        isOwnMessage(message) {
+        isOwnMessage: function(message) {
             return message.senderType !== 'system' && this.me && this.me.name && message.sender === this.me.name;
         },
-        scrollChatToBottom() {
-            const chatList = this.$refs.chatList;
+        scrollChatToBottom: function() {
+            var chatList = this.$refs.chatList;
             if (!chatList) {
                 return;
             }
             chatList.scrollTop = chatList.scrollHeight;
         },
-        handleEndOfVoting() {
-            socket.emit('updateScore',{prompt: this.state.currentPrompt, votes: this.state.votes})
-            let keys = Object.keys(this.state.promptPlayers);
-            let position = keys.indexOf(this.state.currentPrompt);
+        handleEndOfVoting: function() {
+            socket.emit('updateScore', { prompt: this.state.currentPrompt, votes: this.state.votes });
+            var keys = Object.keys(this.state.promptPlayers);
+            var position = keys.indexOf(this.state.currentPrompt);
             if (position < keys.length - 1) {
                 this.state.currentPrompt = keys[position + 1];
-                socket.emit('nextPrompt',this.state.currentPrompt)
+                socket.emit('nextPrompt', this.state.currentPrompt);
             } else {
                 this.state.currentPrompt = null;
                 this.finishVoting();
             }
         },
-        finishVoting() {
-            // Logic to handle the end of voting phase
-            console.log('Finished voting');
-            // Emit event or call method to advance the game state
+        finishVoting: function() {
             socket.emit('finishVoting');
         },
-        // Find answer
-        findAnswerSubmitter(currentPrompt, answerText) {
-            const playersForPrompt = this.state.promptPlayers[currentPrompt];
-            const submitter = playersForPrompt.find(player => {
-                // Check if the list of answers includes the answerText
+        findAnswerSubmitter: function(currentPrompt, answerText) {
+            var playersForPrompt = this.state.promptPlayers[currentPrompt];
+            var submitter = playersForPrompt.find(function(player) {
                 return this.state.playerAnswers[player].includes(answerText);
-            });
+            }, this);
             return this.players[submitter].name;
         }
     }
 });
 
-
-
 function connect() {
-    //Prepare web socket
     socket = io();
 
-    //Connect
     socket.on('connect', function() {
-        //Set connected state to true
         app.connected = true;
-        app.state.state = 0;
-        app.syncWelcomeScreen();
+        if (app.isJoined || app.isAuthenticated || loadStoredSession()) {
+            app.beginRecovery();
+        }
     });
 
-    // State update
     socket.on('state', function(data) {
         app.update(data);
     });
 
-    socket.on('public_state', function(data) {
-        app.updatePublicState(data);
+    socket.on('public_state', function() {
+        return;
     });
 
-    //Handle connection error
     socket.on('connect_error', function(message) {
         alert('Unable to connect: ' + message);
     });
 
-    //Handle disconnection
-    socket.on('disconnect', function() {
-        alert('Disconnected');
-        app.connected = false;
-        app.showWelcomeScreen = false;
+    socket.on('fail', function(message) {
+        app.error = message;
+        app.success = null;
+        app.isAuthPending = false;
+        app.phaseLoading = { active: false, message: '' };
     });
 
-    //Handle incoming chat message
+    socket.on('disconnect', function() {
+        app.connected = false;
+        app.reconnectNotice = 'Connection lost. Attempting to recover your session...';
+    });
+
     socket.on('chat', function(message) {
         app.handleChat(message);
     });
 
-    socket.on('reg_success', function(){
+    socket.on('room_created', function(data) {
+        app.setSelectedRoom(data.roomCode);
+    });
+
+    socket.on('room_selected', function(data) {
+        app.setSelectedRoom(data.roomCode);
+    });
+
+    socket.on('room_error', function(message) {
+        app.roomError = message;
+        app.recoveryInProgress = false;
+    });
+
+    socket.on('audience_reset', function(data) {
+        app.leaveRoomSelection();
+        app.success = data && data.message
+            ? data.message
+            : 'The game has ended. Join or start a room to play again.';
+    });
+
+    socket.on('reg_success', function(data) {
         app.success = 'Registration successful!';
-        app.error= null;
+        app.error = null;
         app.isLogin = true;
-        app.isJoined = true;
-        app.showWelcomeScreen = false;
+        app.isAuthenticated = true;
+        app.isAuthPending = false;
+        app.authPendingMessage = '';
+        app.authenticatedUsername = data.username || app.username;
+        app.persistSessionState();
+        app.entryStep = bootConfig.initialRoomCode ? 'join' : 'start';
     });
 
-    socket.on('reg_fail', function(message){
+    socket.on('reg_fail', function(message) {
         app.error = message;
         app.success = null;
+        app.isAuthPending = false;
+        app.authPendingMessage = '';
+        app.recoveryInProgress = false;
     });
 
-    socket.on('login_success', function(){
+    socket.on('login_success', function(data) {
         app.success = 'Login successful!';
-        app.error= null;
-        app.isJoined = true;
-        app.showWelcomeScreen = false;
+        app.error = null;
+        app.isAuthenticated = true;
+        app.isAuthPending = false;
+        app.authPendingMessage = '';
+        app.authenticatedUsername = data.username || app.username;
+        app.persistSessionState();
+        app.entryStep = bootConfig.initialRoomCode ? 'join' : 'start';
+        if (app.recoveryInProgress) {
+            var savedSession = loadStoredSession();
+            if (savedSession && savedSession.roomCode) {
+                socket.emit('room/select', { roomCode: savedSession.roomCode });
+            } else {
+                app.recoveryInProgress = false;
+                app.reconnectNotice = '';
+            }
+        }
     });
 
-    socket.on('login_fail', function(message){
+    socket.on('login_fail', function(message) {
         app.error = message;
         app.success = null;
+        app.isAuthPending = false;
+        app.authPendingMessage = '';
+        app.recoveryInProgress = false;
+        app.reconnectNotice = '';
     });
 
-    socket.on('prompts', function(data){
+    socket.on('prompts', function(data) {
         app.me.roundPrompts = data;
+    });
+
+    socket.on('loading', function(data) {
+        app.phaseLoading = {
+            active: !!data.active,
+            message: data.message || ''
+        };
+        if (!data.active && app.isAuthPending) {
+            app.isAuthPending = false;
+            app.authPendingMessage = '';
+        }
+    });
+
+    socket.on('error', function(payload) {
+        app.error = payload && payload.message ? payload.message : 'Something went wrong.';
+        app.phaseLoading = { active: false, message: '' };
+    });
+
+    socket.on('room_created', function() {
+        app.phaseLoading = { active: false, message: '' };
+    });
+
+    socket.on('room_selected', function() {
+        app.phaseLoading = { active: false, message: '' };
     });
 }

@@ -1,0 +1,21 @@
+<section class="screen auth-screen">
+    <div class="screen-hero">
+        <p class="eyebrow">Join a room</p>
+        <h2 class="screen-title">Enter the room code</h2>
+        <p class="screen-copy">Ask the host for the unique code, then continue to sign in and enter that room’s lobby.</p>
+    </div>
+
+    <form class="stack-form" @submit.prevent="selectRoom">
+        <label class="field">
+            <span>Room code</span>
+            <input type="text" v-model="roomCodeInput" placeholder="Enter code" maxlength="5" required>
+        </label>
+
+        <div class="action-row">
+            <button type="submit" class="primary-button">Continue</button>
+            <button type="button" class="secondary-button" @click="goToStart">Back</button>
+        </div>
+    </form>
+
+    <p v-if="roomError" class="feedback error-message">{{ roomError }}</p>
+</section>

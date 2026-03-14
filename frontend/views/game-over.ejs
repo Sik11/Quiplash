@@ -9,4 +9,10 @@
             <strong>{{ entry[1] }} pts</strong>
         </article>
     </div>
+
+    <div class="cta-row" v-if="me.admin">
+        <button class="primary-button" @click="admin('returnToLobby')">Return to Lobby</button>
+    </div>
+
+    <p class="screen-copy" v-else>Waiting for the admin to return everyone to the lobby.</p>
 </section>

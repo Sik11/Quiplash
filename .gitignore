@@ -11,3 +11,10 @@ P1_CHECKLIST.md
 .vscode
 archive
 .DS_Store
+frontend/playwright-report/
+frontend/test-results/
+frontend/playwright-artifacts/
+.node-version
+.nvmrc
+CHECKLIST_TEST_MAP.md 
+backend/local_db.json.bak-trace-fix

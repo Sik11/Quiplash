@@ -1,28 +1,27 @@
 <section class="screen welcome-screen">
     <div class="screen-hero">
-        <p class="eyebrow">Admin setup</p>
-        <h2 class="screen-title">Start the room from this device</h2>
-        <p class="screen-copy">Quiplash is a party game where players answer prompts, vote for the funniest responses, and build points across multiple rounds. Keep this device open as the admin screen, then share the join link so everyone else can connect from their own phones.</p>
+        <p class="eyebrow">Start here</p>
+        <h2 class="screen-title">Create a room or join one with a code</h2>
+        <p class="screen-copy">Quiplash runs one private session per room code. Start a game to create a new lobby, or join an existing one with a code from the host.</p>
     </div>
+
+    <p class="screen-copy">Signed in as {{ authenticatedUsername }}</p>
 
     <div class="info-grid">
         <article class="info-card">
             <span class="stat-label">How it works</span>
-            <p class="screen-copy">Players sign in, the admin starts the round, everyone writes answers, and the room votes on the funniest picks.</p>
+            <p class="screen-copy">Create a room, share the code, let everyone join the same lobby, then play through prompts, answers, voting, and scoring.</p>
         </article>
         <article class="info-card">
-            <span class="stat-label">What to share</span>
-            <p class="screen-copy">Send this join link to the group. Anyone on the same network can open it and join the lobby.</p>
+            <span class="stat-label">What players need</span>
+            <p class="screen-copy">Each player signs in, enters the same room code, and lands in that room’s lobby instead of a shared global game.</p>
         </article>
     </div>
 
-    <div class="share-card">
-        <span class="stat-label">Join link</span>
-        <p class="share-link">{{ joinUrl }}</p>
-        <div class="action-row">
-            <button type="button" class="primary-button" @click="copyJoinLink">Copy Join Link</button>
-            <button type="button" class="secondary-button" @click="dismissWelcomeScreen">Continue to Lobby</button>
-        </div>
-        <p v-if="shareStatus" class="feedback success-message">{{ shareStatus }}</p>
+    <div class="action-row">
+        <button type="button" class="primary-button" @click="createRoom">Start a Game</button>
+        <button type="button" class="secondary-button" @click="goToJoinGame">Join a Game</button>
     </div>
+
+    <p v-if="roomError" class="feedback error-message">{{ roomError }}</p>
 </section>
