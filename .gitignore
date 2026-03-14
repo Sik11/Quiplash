@@ -1,0 +1,13 @@
+node_modules/
+logs/
+*.log
+backend/.venv/
+__pycache__/
+*.pyc
+.env
+backend/local.settings.json
+backend/local_db.json
+P1_CHECKLIST.md 
+.vscode
+archive
+.DS_Store
