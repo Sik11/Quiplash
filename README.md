@@ -1,42 +1,92 @@
 # Quiplash
 
-A multiplayer party game built for COMP3207 with live room-based sessions, real-time chat, prompt writing, answer voting, and shared scoreboards.
+A real-time multiplayer party game where players compete by writing funny answers to prompts and voting on each other's responses.
+
+![Node.js](https://img.shields.io/badge/Node.js-20.x-339933?logo=node.js&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.x-3776AB?logo=python&logoColor=white)
+![Socket.IO](https://img.shields.io/badge/Socket.IO-4.x-010101?logo=socket.io&logoColor=white)
+![Flask](https://img.shields.io/badge/Flask-3.x-000000?logo=flask&logoColor=white)
+![Playwright](https://img.shields.io/badge/Tested%20with-Playwright-45ba4b?logo=playwright&logoColor=white)
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+
+## Overview
+
+Players join a room using a 5-character code, write responses to shared prompts, and then vote on everyone's answers. Points are awarded based on votes received. Multiple rooms run independently with full real-time state via Socket.IO.
+
+**Key features:**
+- Room-based sessions with unique join codes
+- Real-time multiplayer via Socket.IO (prompts, answers, votes, scores)
+- Spectator/display mode for projecting the game on a screen
+- In-game chat with lightweight moderation
+- Player registration, login, and persistent leaderboard
+- Reconnect handling for short-lived disconnects
 
 ## Architecture
 
-| Tier | Stack | Cloud |
-|------|-------|-------|
-| **Frontend** | Node.js, Express, Socket.IO, Vue.js, EJS | Google Cloud App Engine / local Node server |
-| **Backend** | Python, Azure Functions-compatible HTTP endpoints, Flask local server, TinyDB for local dev | Azure / local Python server |
-
-The frontend serves the player UI, room-aware display UI, and the Socket.IO room state. The backend handles registration, login, prompt storage, and leaderboard data.
-
-## Structure
-
-```text
-Quiplash/
-├── frontend/    # Express server, Socket.IO, EJS templates, Vue.js client logic
-├── backend/     # Azure Functions HTTP endpoints + local Flask server + tests
-├── test_observations/  # QA summaries and exploratory test outputs
-└── archive/     # Previous coursework submissions
+```
+┌─────────────────────────────────────────────────────────┐
+│                        Browser                          │
+│         Vue.js + Socket.IO client (game.js)             │
+└──────────────────────┬──────────────────────────────────┘
+                       │ HTTP + WebSocket
+┌──────────────────────▼──────────────────────────────────┐
+│               Frontend (Node.js / Express)              │
+│   Socket.IO server, EJS templates, room state manager   │
+│              Runs on port 8080 (default)                │
+└──────────────────────┬──────────────────────────────────┘
+                       │ HTTP (REST)
+┌──────────────────────▼──────────────────────────────────┐
+│                Backend (Python / Flask)                 │
+│   Auth, prompts, leaderboard, TinyDB (local JSON DB)    │
+│              Runs on port 8181 (default)                │
+└─────────────────────────────────────────────────────────┘
 ```
 
-## Running Locally
+| Tier | Stack | Deployment target |
+|------|-------|-------------------|
+| Frontend | Node.js, Express, Socket.IO, EJS, Vue.js | Google Cloud App Engine / Render |
+| Backend | Python, Flask, TinyDB | Azure Functions-compatible / Render |
 
-The frontend is now pinned to Node `20.x`. If you use `nvm`, run `nvm use` from the repo root or from `frontend/`.
+## Repo Structure
 
-The simplest local workflow is to start the backend first, then the frontend.
+```
+Quiplash/
+├── frontend/
+│   ├── app.js              # Express + Socket.IO server, room and game logic
+│   ├── views/              # EJS templates (login, lobby, prompts, votes, scores)
+│   ├── public/             # Client-side JS (game.js, display.js) and CSS
+│   ├── tests/
+│   │   ├── integration/    # Socket.IO-driven multiplayer tests
+│   │   └── e2e/            # Playwright end-to-end tests
+│   ├── package.json
+│   └── app.yaml            # Google Cloud App Engine config
+├── backend/
+│   ├── server.py           # Flask local server
+│   ├── shared_code/        # Player and Prompt models
+│   ├── tests/              # Python unittest suite
+│   └── requirements.txt
+└── start.sh                # One-command local startup
+```
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 20.x (use `nvm use` if you have nvm installed)
+- Python 3.x
+- pip
 
 ### Backend
 
 ```bash
 cd backend
+python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 python server.py
 ```
 
-The local backend runs on `http://localhost:8181` by default.
+The backend runs on `http://localhost:8181` by default.
 
 ### Frontend
 
@@ -46,88 +96,87 @@ npm install
 BACKEND=http://localhost:8181 npm start
 ```
 
-If `BACKEND` is not set locally, the frontend defaults to `http://localhost:8181`.
+The frontend runs on `http://localhost:8080` by default.
 
-### One-Command Local Startup
+### One-command startup
 
 ```bash
 ./start.sh
 ```
 
-This starts both services, waits for the backend to respond, and prints host/join URLs for the room-based flow.
+Starts both services, waits for the backend to be ready, and prints the host and join URLs.
+
+## Environment Variables
+
+### Frontend
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `BACKEND` | `http://localhost:8181` | Backend service URL |
+| `JOIN_URL` | `http://localhost:8080` | Public URL shown to players for joining |
+| `AUTO_SHUTDOWN_IF_IDLE` | `0` | Shut down after 10 min idle if set to `1` |
+
+### Backend
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | `8181` | Port the Flask server listens on |
+
+## Game Flow
+
+1. Register or log in.
+2. Create a new room or join with an existing room code.
+3. The host starts the game once players are in the lobby.
+4. Players submit their own prompts.
+5. Players receive and answer two assigned prompts.
+6. Everyone votes on the answers (blind voting, no self-voting).
+7. Scores update live; the player with the most votes wins each round.
+8. The host can return the room to the lobby for another round.
+
+## Display Mode
+
+The `/display` route renders a room-aware spectator view, suitable for projecting on a shared screen during a session. Target a specific room with `/display?room=CODE`.
 
 ## Testing
 
-### Frontend Integration Tests
-
-```bash
-cd frontend
-npm run test:integration
-```
-
-These tests drive Socket.IO clients directly for multiplayer state checks such as room isolation, reconnect handling, and moderation.
-
-### Frontend End-To-End Tests
-
-```bash
-cd frontend
-npm run test:e2e
-```
-
-Playwright writes traces and screenshots to `frontend/test-results/` and the HTML report to `frontend/playwright-report/`.
-
-### Backend Tests
+### Backend unit tests
 
 ```bash
 cd backend
 ./.venv/bin/python -m unittest tests.test_local_server_endpoints tests.test_local_server_config
 ```
 
-The backend directory still contains some legacy Azure-era tests, but the local-first automated coverage is the `test_local_server_endpoints` and `test_local_server_config` pair above.
-
-## Environment Variables
-
-### Frontend
+### Frontend integration tests
 
 ```bash
-BACKEND=http://localhost:8181
-JOIN_URL=http://localhost:8080
-AUTO_SHUTDOWN_IF_IDLE=0
+cd frontend
+npm run test:integration
 ```
 
-In production, `BACKEND` should point to the deployed backend URL rather than `localhost`.
+These tests drive Socket.IO clients directly and cover room isolation, reconnect handling, disconnect/admin scenarios, and full gameplay flow.
 
-### Backend
+### Frontend end-to-end tests
 
 ```bash
-PORT=8181
+cd frontend
+npm run test:e2e          # headless
+npm run test:e2e:headed   # with visible browser
 ```
 
-## Game Flow
-
-1. A player logs in or registers.
-2. They start a new room or join an existing room code.
-3. The room host starts the game once enough players are present.
-4. Players submit prompts, answer assigned prompts, and vote on responses.
-5. Scores update live for the room and its display view.
-6. At game over, the host can return the room to the lobby.
-
-## Room Support
-
-- Each session is tied to a unique room code.
-- Multiple rooms can run independently at the same time.
-- `/display` is room-aware and can target a specific room with `/display?room=CODE`.
-- If a player disconnects briefly, the server keeps their slot for a short reconnect grace period and attempts to restore them to the same room.
+Playwright traces and screenshots are written to `frontend/test-results/`.
 
 ## Deployment
 
-- **Frontend**: `gcloud app deploy` (see `frontend/app.yaml`)
-- **Backend**: Deploy via Azure Functions CLI or Azure Portal
-- **Production note**: set `BACKEND` on the frontend service to the deployed backend URL.
+- **Frontend**: `gcloud app deploy` using `frontend/app.yaml` (Google Cloud App Engine), or deploy via Render using the `Procfile`
+- **Backend**: Deploy via Azure Functions CLI, Azure Portal, or Render
+- Set the `BACKEND` environment variable on the frontend service to point to your deployed backend URL
 
 ## Known Limitations
 
-- Room and game state are held in server memory per process. This is suitable for demos, but it is not yet designed for multi-instance sync or full production scaling.
-- Reconnect handling is improved for short-lived disconnects, but it is still aimed at demo reliability rather than hardened production-grade session recovery.
-- Prompt and chat validation includes basic length checks and a lightweight moderation filter, but it is not a full moderation system.
-- Cold starts on deployed infrastructure may still affect responsiveness depending on hosting behavior.
+- Room and game state are held in server memory per process. Multiple instances of the frontend are not yet synced.
+- Reconnect handling targets demo reliability, not hardened production session recovery.
+- The moderation filter is a lightweight word blocklist, not a full content moderation system.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
