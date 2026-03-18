@@ -16,5 +16,7 @@ frontend/test-results/
 frontend/playwright-artifacts/
 .node-version
 .nvmrc
+.claude
+.*
 CHECKLIST_TEST_MAP.md 
 backend/local_db.json.bak-trace-fix
