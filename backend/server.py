@@ -191,6 +191,13 @@ def leaderboard():
     return jsonify(top_n)
 
 
+# ── /health ──────────────────────────────────────────────────────────────────
+
+@app.route('/health', methods=['GET'])
+def health():
+    return jsonify({"status": "ok"})
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':

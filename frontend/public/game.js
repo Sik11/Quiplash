@@ -77,6 +77,7 @@ var app = new Vue({
         authenticatedUsername: '',
         reconnectNotice: '',
         recoveryInProgress: false,
+        backendWarming: false,
         me: emptyPlayerState(),
         state: emptyGameState(),
         players: {},
@@ -535,6 +536,10 @@ function connect() {
 
     socket.on('prompts', function(data) {
         app.me.roundPrompts = data;
+    });
+
+    socket.on('backend_status', function(data) {
+        app.backendWarming = !!data.warming;
     });
 
     socket.on('loading', function(data) {

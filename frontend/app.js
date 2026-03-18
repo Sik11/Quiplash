@@ -375,6 +375,25 @@ function scheduleIdleShutdownIfNeeded() {
   }, 2500);
 }
 
+async function checkBackendWarm(socket) {
+  let warmingNotified = false;
+  const warmingTimeout = setTimeout(() => {
+    warmingNotified = true;
+    socket.emit('backend_status', { warming: true });
+  }, 1500);
+
+  try {
+    await axios.get(BACKEND_ENDPOINT + '/health', { timeout: 40000 });
+  } catch (_) {
+    // backend unreachable — still clear the banner so the user gets the error on login
+  }
+
+  clearTimeout(warmingTimeout);
+  if (warmingNotified) {
+    socket.emit('backend_status', { warming: false });
+  }
+}
+
 async function callAzureFunction(endpoint, method, data) {
   try {
     const config = {
@@ -1190,6 +1209,7 @@ io.on('connection', socket => {
   console.log('New connection');
   connectedSockets.add(socket.id);
   cancelIdleShutdown();
+  checkBackendWarm(socket);
 
   socket.on('room/create', () => {
     const existingSession = getSocketSession(socket);

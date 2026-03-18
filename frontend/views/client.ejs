@@ -24,6 +24,7 @@
         <section class="panel main-panel">
             <div v-if="reconnectNotice" class="feedback success-message">{{ reconnectNotice }}</div>
             <div v-if="phaseLoading.active" class="feedback success-message">{{ phaseLoading.message }}</div>
+            <div v-if="backendWarming" class="feedback success-message">Server is waking up, this may take up to 30 seconds...</div>
 
             <div v-if="connected && isAuthenticated == false">
                 <%- include('login') %>
