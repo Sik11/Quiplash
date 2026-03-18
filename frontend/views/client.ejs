@@ -22,12 +22,19 @@
 
     <div class="shell-grid">
         <section class="panel main-panel">
-            <div v-if="connected && isJoined == false && showWelcomeScreen">
+            <div v-if="reconnectNotice" class="feedback success-message">{{ reconnectNotice }}</div>
+            <div v-if="phaseLoading.active" class="feedback success-message">{{ phaseLoading.message }}</div>
+
+            <div v-if="connected && isAuthenticated == false">
+                <%- include('login') %>
+            </div>
+
+            <div v-if="connected && isAuthenticated && isJoined == false && entryStep == 'start'">
                 <%- include('welcome') %>
             </div>
 
-            <div v-if="connected && isJoined == false && !showWelcomeScreen">
-                <%- include('login') %>
+            <div v-if="connected && isAuthenticated && isJoined == false && entryStep == 'join'">
+                <%- include('room-code') %>
             </div>
 
             <div v-if="connected && isJoined && state.state == 0">
@@ -73,7 +80,7 @@
             </div>
         </section>
 
-        <aside class="panel sidebar-panel" v-if="connected">
+        <aside class="panel sidebar-panel" v-if="connected && isJoined">
             <div class="sidebar-header">
                 <div>
                     <p class="eyebrow">Live lobby</p>
@@ -90,7 +97,7 @@
 </div>
 
 <script>
-    window.QUIPLASH_BOOT = <%- JSON.stringify({ joinUrl }) %>;
+    window.QUIPLASH_BOOT = <%- JSON.stringify({ joinUrl, initialRoomCode }) %>;
 </script>
 <%- include('partials/footer'); -%>
 </html>

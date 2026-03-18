@@ -1,29 +1,34 @@
 <section class="screen auth-screen">
     <div class="screen-hero">
-        <p class="eyebrow">Welcome back</p>
-        <h2 class="screen-title">Join the room in seconds</h2>
-        <p class="screen-copy">Sign in to play, or create an account if this is your first round.</p>
+        <p class="eyebrow">{{ isAuthenticated ? 'Signed in as ' + authenticatedUsername : 'Welcome back' }}</p>
+        <h2 class="screen-title">{{ isAuthenticated ? 'You are ready to pick a room' : 'Sign in before joining a game' }}</h2>
+        <p class="screen-copy">{{ isAuthenticated ? 'Choose to start a new room or join an existing one with a code.' : 'Use an existing account or create one first. Room selection comes after login.' }}</p>
     </div>
 
-    <form class="stack-form" @submit.prevent="isLogin ? login(username, password) : register(username, password)">
+    <form class="stack-form" v-if="!isAuthenticated" @submit.prevent="isLogin ? login(username, password) : register(username, password)">
         <label class="field">
             <span>Username</span>
-            <input type="text" v-model="username" placeholder="Enter your username" required>
+            <input type="text" v-model="username" placeholder="Enter your username" required :disabled="isAuthPending">
         </label>
 
         <label class="field">
             <span>Password</span>
-            <input type="password" v-model="password" placeholder="Enter your password" required>
+            <input type="password" v-model="password" placeholder="Enter your password" required :disabled="isAuthPending">
         </label>
 
         <div class="action-row">
-            <button type="submit" class="primary-button">{{ isLogin ? 'Login' : 'Register' }}</button>
-            <button type="button" class="secondary-button" @click="toggleForm">
+            <button type="submit" class="primary-button" :disabled="isAuthPending">{{ isAuthPending ? authPendingMessage : (isLogin ? 'Login' : 'Register') }}</button>
+            <button type="button" class="secondary-button" @click="toggleForm" :disabled="isAuthPending">
                 {{ isLogin ? 'Create account' : 'Use existing account' }}
             </button>
         </div>
     </form>
 
+    <div class="action-row" v-if="isAuthenticated">
+        <button type="button" class="primary-button" @click="goToStart">Continue</button>
+    </div>
+
+    <p v-if="roomError" class="feedback error-message">{{ roomError }}</p>
     <p v-if="success" class="feedback success-message">{{ success }}</p>
     <p v-if="error" class="feedback error-message">{{ error }}</p>
 </section>

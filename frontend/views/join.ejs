@@ -12,6 +12,15 @@
             <p class="screen-copy">{{ waitingMessage }}</p>
         </div>
 
+        <div class="share-card">
+            <span class="stat-label">Room code</span>
+            <p class="share-link">{{ selectedRoomCode }}</p>
+            <div class="action-row">
+                <button type="button" class="secondary-button" @click="copyJoinLink">Copy Join Link</button>
+            </div>
+            <p v-if="shareStatus" class="feedback success-message">{{ shareStatus }}</p>
+        </div>
+
         <div class="stat-row">
             <div class="stat-card">
                 <span class="stat-label">Players</span>
@@ -30,6 +39,7 @@
         <div class="player-grid">
             <article v-for="player of players" class="player-card">
                 <span class="player-badge" v-if="player.admin">Admin</span>
+                <span class="player-badge" v-if="player.connected === false">Reconnecting</span>
                 <strong>{{ player.name }}</strong>
             </article>
         </div>
