@@ -594,15 +594,6 @@ function resetRoomToLobby(room) {
   room.state = createInitialState();
   room.suggestedPrompts.clear();
   room.playerPrompts = new Map();
-  for (const [, audienceSocket] of room.audienceToSockets) {
-    audienceSocket.emit('audience_reset', {
-      message: 'The game has ended. Join or start a room to play again.'
-    });
-    clearJoinedSession(audienceSocket);
-  }
-  room.audience.clear();
-  room.audienceToSockets.clear();
-  room.socketsToAudience.clear();
 
   for (const [, player] of room.players) {
     player.connected = true;
@@ -613,6 +604,8 @@ function resetRoomToLobby(room) {
     player.roundScore = 0;
     player.totalScore = 0;
   }
+  // Audience members remain in the room — updateAll will push state 0 to them
+  // and they will see the lobby/audience view without needing to rejoin
 }
 
 function assignAdminIfNeeded(room) {

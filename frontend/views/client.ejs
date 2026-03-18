@@ -42,6 +42,14 @@
                 <%- include('join') -%>
             </div>
 
+            <div v-if="connected && isJoined && me.audience && state.state >= 1 && state.state <= 4">
+                <section class="screen">
+                    <p class="eyebrow">Audience</p>
+                    <h2 class="screen-title">Game in progress</h2>
+                    <p class="screen-copy">A round is underway. Stay connected and you will join as a full player from the next round.</p>
+                </section>
+            </div>
+
             <div v-if="connected && state.state == 1 && me.state == 1">
                 <%- include('prompts') -%>
             </div>
