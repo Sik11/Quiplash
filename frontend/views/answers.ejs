@@ -1,0 +1,14 @@
+<section class="screen" v-if="me.roundPrompts.length > 0">
+    <p class="eyebrow">Answer phase</p>
+    <h2 class="screen-title">{{ me.roundPrompts[promptIndex] }}</h2>
+    <p class="screen-copy">Prompt {{ promptIndex + 1 }} of {{ me.roundPrompts.length }}. Keep it sharp and funny.</p>
+
+    <label class="field">
+        <span>Your answer</span>
+        <input type="text" v-model="currentAnswer" placeholder="Type your answer" @keyup.enter="submitAnswer(me.roundPrompts[promptIndex], currentAnswer)">
+    </label>
+
+    <div class="action-row">
+        <button class="primary-button" @click="submitAnswer(me.roundPrompts[promptIndex], currentAnswer)" :disabled="!currentAnswer.trim()">Submit Answer</button>
+    </div>
+</section>

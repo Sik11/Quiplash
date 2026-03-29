@@ -1,0 +1,10 @@
+<section class="screen">
+    <p class="eyebrow">Answers sent</p>
+    <h2 class="screen-title">You are done for this phase</h2>
+    <p class="screen-copy" v-if="isWaitingForAnswers">Waiting for the rest of the players to submit their answers.</p>
+    <p class="screen-copy" v-else>Every answer is in. Voting can begin.</p>
+
+    <div class="action-row" v-if="me.admin == true && !isWaitingForAnswers">
+        <button class="primary-button" @click="advanceGame()">Start Voting</button>
+    </div>
+</section>

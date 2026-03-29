@@ -1,0 +1,12 @@
+<section class="screen">
+    <p class="eyebrow">Final standings</p>
+    <h2 class="screen-title">Game over</h2>
+    <p class="screen-copy">Thanks for playing. Here is the final leaderboard.</p>
+
+    <div class="score-list">
+        <article class="score-row" v-for="entry in totalScoreEntries">
+            <span>{{ playerName(entry[0]) }}</span>
+            <strong>{{ entry[1] }} pts</strong>
+        </article>
+    </div>
+</section>
