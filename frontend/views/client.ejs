@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<%- include('partials/header'); -%>
+
+<div id="game" class="app-shell">
+    <div class="app-backdrop"></div>
+
+    <header class="shell-nav">
+        <div>
+            <p class="eyebrow">Multiplayer party game</p>
+            <h1 class="brand">Quiplash</h1>
+        </div>
+        <div class="nav-actions">
+            <span class="connection-pill" :class="connected ? 'online' : 'offline'">
+                {{ connected ? 'Connected' : 'Connecting' }}
+            </span>
+            <button type="button" class="theme-toggle" @click="toggleTheme">
+                {{ theme === 'dark' ? 'Light mode' : 'Dark mode' }}
+            </button>
+        </div>
+    </header>
+
+    <div class="shell-grid">
+        <section class="panel main-panel">
+            <div v-if="reconnectNotice" class="feedback success-message">{{ reconnectNotice }}</div>
+            <div v-if="phaseLoading.active" class="feedback success-message">{{ phaseLoading.message }}</div>
+            <div v-if="backendWarming" class="feedback success-message">Server is waking up, this may take up to 30 seconds...</div>
+
+            <div v-if="connected && isAuthenticated == false">
+                <%- include('login') %>
+            </div>
+
+            <div v-if="connected && isAuthenticated && isJoined == false && entryStep == 'start'">
+                <%- include('welcome') %>
+            </div>
+
+            <div v-if="connected && isAuthenticated && isJoined == false && entryStep == 'join'">
+                <%- include('room-code') %>
+            </div>
+
+            <div v-if="connected && isJoined && state.state == 0">
+                <%- include('join') -%>
+            </div>
+
+            <div v-if="connected && isJoined && me.audience && state.state >= 1 && state.state <= 4">
+                <section class="screen">
+                    <p class="eyebrow">Audience</p>
+                    <h2 class="screen-title">Game in progress</h2>
+                    <p class="screen-copy">A round is underway. You are watching as audience and will remain in audience mode for this session.</p>
+                </section>
+            </div>
+
+            <div v-if="connected && state.state == 1 && me.state == 1">
+                <%- include('prompts') -%>
+            </div>
+
+            <div v-if="connected && state.state == 1 && me.state == 2">
+                <%- include('prompts-submitted') -%>
+            </div>
+
+            <div v-if="connected && state.state == 2 && me.state == 3">
+                <%- include('answers') -%>
+            </div>
+
+            <div v-if="connected && state.state == 2 && me.state == 4">
+                <%- include('answers-submitted') -%>
+            </div>
+
+            <div v-if="connected && state.state == 3 && me.state == 5">
+                <%- include('votes') -%>
+            </div>
+
+            <div v-if="connected && state.state == 3 && me.state == 6">
+                <%- include('votes-submitted') -%>
+            </div>
+
+            <div v-if="connected && state.state == 4 && me.state == 7">
+                <%- include('scores') -%>
+            </div>
+
+            <div v-if="connected && state.state == 5">
+                <%- include('game-over') -%>
+            </div>
+
+            <div v-if="connected == false" class="screen">
+                <p class="eyebrow">Session status</p>
+                <h2 class="screen-title">Connecting to the game server</h2>
+                <p class="screen-copy">Establishing the live game session now.</p>
+            </div>
+        </section>
+
+        <aside class="panel sidebar-panel" v-if="connected && isJoined">
+            <div class="sidebar-header">
+                <div>
+                    <p class="eyebrow">Live lobby</p>
+                    <h2 class="sidebar-title">Room updates</h2>
+                </div>
+                <div class="mini-stats">
+                    <span>{{ playerCount }} players</span>
+                    <span>{{ audienceCount }} audience</span>
+                </div>
+            </div>
+            <%- include('chat'); -%>
+        </aside>
+    </div>
+</div>
+
+<script>
+    window.QUIPLASH_BOOT = <%- JSON.stringify({ joinUrl, initialRoomCode }) %>;
+</script>
+<%- include('partials/footer'); -%>
+</html>

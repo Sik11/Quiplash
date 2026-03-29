@@ -1,0 +1,27 @@
+<section class="screen welcome-screen">
+    <div class="screen-hero">
+        <p class="eyebrow">Start here</p>
+        <h2 class="screen-title">Create a room or join one with a code</h2>
+        <p class="screen-copy">Quiplash runs one private session per room code. Start a game to create a new lobby, or join an existing one with a code from the host.</p>
+    </div>
+
+    <p class="screen-copy">Signed in as {{ authenticatedUsername }}</p>
+
+    <div class="info-grid">
+        <article class="info-card">
+            <span class="stat-label">How it works</span>
+            <p class="screen-copy">Create a room, share the code, let everyone join the same lobby, then play through prompts, answers, voting, and scoring.</p>
+        </article>
+        <article class="info-card">
+            <span class="stat-label">What players need</span>
+            <p class="screen-copy">Each player signs in, enters the same room code, and lands in that room’s lobby instead of a shared global game.</p>
+        </article>
+    </div>
+
+    <div class="action-row">
+        <button type="button" class="primary-button" @click="createRoom">Start a Game</button>
+        <button type="button" class="secondary-button" @click="goToJoinGame">Join a Game</button>
+    </div>
+
+    <p v-if="roomError" class="feedback error-message">{{ roomError }}</p>
+</section>

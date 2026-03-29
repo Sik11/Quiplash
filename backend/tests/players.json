@@ -1,0 +1,68 @@
+[
+    {
+        "username": "testuser",
+        "password": "testpassword",
+        "games_played": 12,
+        "total_score": 10
+    },
+    {
+        "username": "testy",
+        "password": "0123456789",
+        "games_played": 12,
+        "total_score": 10
+    },
+    {
+        "username": "test",
+        "password": "testpassword",
+        "games_played": 0,
+        "total_score": 0
+    },
+    {
+        "username": "A-player",
+        "password": "0123456789",
+        "games_played": 0,
+        "total_score": 0
+    },
+    {
+        "username": "A-playe",
+        "password": "0123456789",
+        "games_played": 0,
+        "total_score": 0
+    },
+    {
+        "username": "B-player",
+        "password": "0123456789",
+        "games_played": 0,
+        "total_score": 0
+    },
+    {
+        "username": "C-player",
+        "password": "0123456789",
+        "games_played": 0,
+        "total_score": 0
+    },
+    {
+        "username": "D-player",
+        "password": "0123456789",
+        "games_played": 0,
+        "total_score": 0
+    },
+    {
+        "username": "X-player",
+        "password": "0123456789",
+        "games_played": 0,
+        "total_score": 0
+    },
+    {
+        "username": "Y-player",
+        "password": "0123456789",
+        "games_played": 0,
+        "total_score": 0
+    },
+    {
+        "username": "Z-player",
+        "password": "0123456789",
+        "games_played": 0,
+        "total_score": 0
+    }
+]
