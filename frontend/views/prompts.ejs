@@ -1,0 +1,21 @@
+<section class="screen">
+    <p class="eyebrow">Round {{ state.round }}</p>
+    <h2 class="screen-title">Write a strong prompt</h2>
+    <p class="screen-copy">Keep it between 15 and 80 characters so the round stays fast and readable.</p>
+
+    <label class="field">
+        <span>Your prompt</span>
+        <input type="text" v-model="prompt" maxlength="80" @keyup.enter="submitPrompt(prompt)" placeholder="Type your funniest prompt here">
+    </label>
+
+    <div class="meta-row">
+        <span class="character-count">{{ prompt.length }}/80</span>
+        <span class="hint-text" :class="isPromptValid ? 'valid' : 'invalid'">
+            {{ isPromptValid ? 'Prompt length looks good' : 'Need 15 to 80 characters' }}
+        </span>
+    </div>
+
+    <div class="action-row">
+        <button class="primary-button" @click="submitPrompt(prompt)" :disabled="!isPromptValid">Submit Prompt</button>
+    </div>
+</section>
